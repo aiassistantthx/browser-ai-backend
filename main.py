@@ -1,8 +1,10 @@
 import logging
 import os
 import sys
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from playwright.async_api import async_playwright
+import asyncio
 
 # Configure logging to show everything
 logging.basicConfig(
@@ -29,12 +31,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Store browser instance
+browser = None
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application startup...")
     # Log all mounted routes
     for route in app.routes:
         logger.info(f"Route mounted: {route.path} [{','.join(route.methods)}]")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Application shutdown...")
+    global browser
+    if browser:
+        await browser.close()
+        logger.info("Browser closed")
 
 @app.get("/")
 async def root():
@@ -45,3 +58,41 @@ async def root():
 async def health():
     logger.info("Health check endpoint called")
     return {"status": "healthy"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    logger.info("WebSocket connection established")
+    
+    try:
+        # Initialize browser on first connection
+        global browser
+        if not browser:
+            logger.info("Initializing browser...")
+            playwright = await async_playwright().start()
+            browser = await playwright.chromium.launch(
+                headless=True,
+                args=['--no-sandbox']
+            )
+            logger.info("Browser initialized successfully")
+
+        # Test browser by creating a page
+        page = await browser.new_page()
+        await page.goto('https://example.com')
+        title = await page.title()
+        await page.close()
+        
+        await websocket.send_json({
+            "status": "success",
+            "message": f"Browser test successful. Page title: {title}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in WebSocket connection: {str(e)}", exc_info=True)
+        await websocket.send_json({
+            "status": "error",
+            "message": str(e)
+        })
+    finally:
+        await websocket.close()
+        logger.info("WebSocket connection closed")

@@ -8,7 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from browser_use import Agent
+from browser_use import Agent, Browser
 from langchain_openai import ChatOpenAI
 
 # Load environment variables
@@ -36,15 +36,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global agent variable
+# Global variables
 agent = None
+browser = None
 
 def get_agent():
-    global agent
+    global agent, browser
     if agent is None:
+        browser = Browser(headless=True)
         agent = Agent(
             llm=ChatOpenAI(model="gpt-4"),
-            browser_config={"headless": True}
+            browser=browser
         )
     return agent
 

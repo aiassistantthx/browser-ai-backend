@@ -154,14 +154,18 @@ async def execute_task(task_id: str, request: TaskRequest):
             current_agent = get_agent()
             logger.info("Agent instance retrieved successfully")
             
-            # Update agent's task with the current request and URL
-            task_description = f"On page {request.context.url}, {request.task}"
-            logger.info(f"Setting task description: {task_description}")
-            current_agent.task = task_description
+            # First navigate to the page using the browser
+            logger.info(f"Navigating to URL: {request.context.url}")
+            await current_agent.browser.page.goto(request.context.url)
+            logger.info("Navigation completed")
             
-            # Run the task
+            # Update agent's task with the current request
+            logger.info(f"Setting task: {request.task}")
+            current_agent.task = request.task
+            
+            # Execute the task
             logger.info("Starting task execution...")
-            result = await current_agent.run()
+            result = await current_agent.execute()
             logger.info(f"Task execution completed with result: {result}")
             
             task.status = "completed"

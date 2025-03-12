@@ -33,15 +33,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global agent variable
+agent = None
+
+def get_agent():
+    global agent
+    if agent is None:
+        agent = Agent(
+            llm=ChatOpenAI(model="gpt-4"),
+            headless=True
+        )
+    return agent
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
     try:
-        # Check if agent is initialized
-        if not agent:
-            return {"status": "unhealthy", "message": "Agent not initialized"}
-        
-        # Basic service health check
+        # Basic service health check - don't check agent here
         return {
             "status": "healthy",
             "service": "browser-ai-backend",
@@ -50,12 +58,6 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {"status": "unhealthy", "error": str(e)}
-
-# Initialize Agent with OpenAI
-agent = Agent(
-    llm=ChatOpenAI(model="gpt-4"),
-    headless=True  # Set to True for Docker
-)
 
 # Data models
 class Context(BaseModel):
@@ -131,8 +133,9 @@ async def execute_task(task_id: str, request: TaskRequest):
         await manager.broadcast({"type": "status", "task_id": task_id, "status": "processing"})
         logger.info(f"Processing task {task_id}: {request.task}")
         
-        # Execute browser automation with context
-        result = await agent.run(
+        # Get agent instance and execute browser automation
+        current_agent = get_agent()
+        result = await current_agent.run(
             task=request.task,
             initial_url=request.context.url,
             context={"page_title": request.context.title}

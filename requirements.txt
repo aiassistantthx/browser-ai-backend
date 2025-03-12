@@ -1,6 +1,6 @@
-fastapi==0.109.2
+fastapi>=0.110.0
 uvicorn==0.27.1
-pydantic==2.5.2
+pydantic>=2.10.4,<3.0.0
 python-dotenv==1.0.0
 websockets==12.0
 browser-use==0.1.40

@@ -52,5 +52,11 @@ ENV DISPLAY=:99
 # Expose the port
 EXPOSE 8000
 
+# Create startup script
+RUN echo '#!/bin/bash\n\
+echo "Starting FastAPI application..."\n\
+exec python -m uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}" --log-level debug\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
 # Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]

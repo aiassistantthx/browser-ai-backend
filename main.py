@@ -44,7 +44,7 @@ def get_agent():
     if agent is None:
         agent = Agent(
             llm=ChatOpenAI(model="gpt-4"),
-            headless=True
+            browser_config={"headless": True}
         )
     return agent
 
@@ -197,3 +197,12 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket connection error: {e}")
     finally:
         manager.disconnect(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=PORT,
+        log_level="info"
+    )

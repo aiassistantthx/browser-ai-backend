@@ -43,7 +43,8 @@ def get_agent():
     global agent
     if agent is None:
         agent = Agent(
-            llm=ChatOpenAI(model="gpt-4")
+            llm=ChatOpenAI(model="gpt-4"),
+            headless=True
         )
     return agent
 

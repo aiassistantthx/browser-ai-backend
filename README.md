@@ -1,95 +1,44 @@
 # Browser AI Backend
 
-This is the backend service for the Browser AI Chrome extension, which provides AI-powered browser automation capabilities using the browser-use library and OpenAI's language models.
+Backend service for browser automation using browser-use and FastAPI.
 
 ## Features
 
-- FastAPI server with WebSocket support for real-time updates
-- Integration with browser-use for browser automation
-- OpenAI language model integration
-- CORS support for Chrome extension
-- Robust error handling and logging
-- Docker support for easy deployment
-
-## Prerequisites
-
-- Python 3.11 or higher
-- Chrome browser installed
-- OpenAI API key
+- Browser automation with browser-use
+- Real-time task status updates via WebSocket
+- FastAPI REST endpoints
+- Docker support
 
 ## Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/aiassistantthx/browser-ai-backend.git
-cd browser-ai-backend
-```
-
-2. Create a virtual environment and activate it:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
+1. Clone the repository
+2. Copy `.env.example` to `.env` and add your OpenAI API key
 3. Install dependencies:
 ```bash
 pip install -r requirements.txt
+playwright install
 ```
 
-4. Create a `.env` file in the root directory and add your OpenAI API key:
-```
-OPENAI_API_KEY=your_api_key_here
-```
-
-## Running the Server
-
-### Local Development
-
+4. Run the server:
 ```bash
 python main.py
 ```
 
-The server will start on `http://localhost:8000`.
+## Docker
 
-### Using Docker
+To run with Docker:
 
-1. Build the Docker image:
 ```bash
 docker build -t browser-ai-backend .
-```
-
-2. Run the container:
-```bash
-docker run -p 8000:8000 -e OPENAI_API_KEY=your_api_key_here browser-ai-backend
+docker run -p 8000:8000 browser-ai-backend
 ```
 
 ## API Endpoints
 
-- `POST /tasks`: Create a new browser automation task
-- `GET /tasks/{task_id}`: Get the status and result of a task
-- `WebSocket /ws`: Real-time updates for task status and results
+- POST `/tasks` - Create a new browser automation task
+- GET `/tasks/{task_id}` - Get task status and result
+- WebSocket `/ws` - Real-time task updates
 
 ## Environment Variables
 
-- `OPENAI_API_KEY`: Your OpenAI API key (required)
-- `PORT`: Server port (default: 8000)
-- `HOST`: Server host (default: 0.0.0.0)
-
-## Deployment
-
-The service can be deployed to any platform that supports Docker containers. We recommend using platforms like:
-
-- Render.com
-- DigitalOcean
-- Heroku
-- AWS Elastic Beanstalk
-
-Make sure to set the `OPENAI_API_KEY` environment variable in your deployment environment.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+- `OPENAI_API_KEY` - Your OpenAI API key

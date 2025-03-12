@@ -1,48 +1,28 @@
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV PLAYWRIGHT_HEADLESS=true
-ENV DISPLAY=:99
-
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies and Playwright in one layer to reduce image size
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update && apt-get install -y \
-    google-chrome-stable \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-thai-tlwg \
-    fonts-kacst \
-    fonts-freefont-ttf \
-    libxss1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir playwright==1.41.2 \
-    && playwright install chromium \
-    && playwright install-deps
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy and install requirements
+# Copy requirements first for better caching
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application
+# Install Playwright browsers
+RUN playwright install chromium
+
+# Copy the rest of the application
 COPY . .
 
-# Expose the port
+# Expose port
 EXPOSE 8000
 
-# Use a shell script to start the application
-COPY <<-"EOF" /start.sh
-#!/bin/bash
-echo "Starting FastAPI application..."
-exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level debug
-EOF
-
-RUN chmod +x /start.sh
-CMD ["/start.sh"]
+# Run the application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

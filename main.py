@@ -1,86 +1,183 @@
-import logging
 import os
-import sys
-from fastapi import FastAPI, WebSocket
+import json
+import logging
+import asyncio
+from typing import Dict, List, Optional
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from browser_use import Agent
+from langchain_openai import ChatOpenAI
 
-# Configure logging to show everything
+# Load environment variables
+load_dotenv()
+
+# Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
 
-# Log system information at startup
-logger.info(f"Python version: {sys.version}")
-logger.info(f"Current working directory: {os.getcwd()}")
-logger.info(f"Environment variables: {dict(os.environ)}")
-
+# Initialize FastAPI app
 app = FastAPI()
 
-# Add CORS middleware
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["chrome-extension://*", "http://localhost:*", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Application startup...")
-    # Log all mounted routes
-    for route in app.routes:
-        logger.info(f"Route mounted: {route.path} [{','.join(route.methods)}]")
+# Initialize Agent with OpenAI
+agent = Agent(
+    llm=ChatOpenAI(model="gpt-4"),
+    headless=False  # Set to True in production
+)
 
-@app.get("/")
-async def root():
-    logger.info("Root endpoint called")
-    return {"message": "Hello World"}
+# Data models
+class Context(BaseModel):
+    url: str
+    title: str
 
-@app.get("/health")
-async def health():
-    logger.info("Health check endpoint called")
-    return {"status": "healthy"}
+class TaskRequest(BaseModel):
+    task: str
+    context: Context
+
+class TaskResponse(BaseModel):
+    id: str
+    status: str
+    result: Optional[str] = None
+    error: Optional[str] = None
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        try:
+            await websocket.accept()
+            self.active_connections.append(websocket)
+            logger.info("New WebSocket connection established")
+            await websocket.send_json({"type": "status", "status": "connected"})
+        except Exception as e:
+            logger.error(f"Error accepting WebSocket connection: {e}")
+            raise
+
+    def disconnect(self, websocket: WebSocket):
+        try:
+            self.active_connections.remove(websocket)
+            logger.info("WebSocket connection closed")
+        except ValueError:
+            logger.warning("Attempted to remove non-existent WebSocket connection")
+
+    async def broadcast(self, message: dict):
+        logger.info(f"Broadcasting message: {message}")
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.error(f"Error broadcasting message: {e}")
+                disconnected.append(connection)
+        
+        for connection in disconnected:
+            self.disconnect(connection)
+
+manager = ConnectionManager()
+tasks: Dict[str, TaskResponse] = {}
+
+@app.post("/tasks")
+async def create_task(request: TaskRequest):
+    try:
+        logger.info(f"Received task request: {request}")
+        task_id = str(len(tasks) + 1)
+        task = TaskResponse(id=task_id, status="pending")
+        tasks[task_id] = task
+        
+        asyncio.create_task(execute_task(task_id, request))
+        return task
+    except Exception as e:
+        logger.error(f"Error creating task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def execute_task(task_id: str, request: TaskRequest):
+    task = tasks[task_id]
+    try:
+        task.status = "processing"
+        await manager.broadcast({"type": "status", "task_id": task_id, "status": "processing"})
+        logger.info(f"Processing task {task_id}: {request.task}")
+        
+        # Execute browser automation with context
+        result = await agent.run(
+            task=request.task,
+            initial_url=request.context.url,
+            context={"page_title": request.context.title}
+        )
+        
+        logger.info(f"Task {task_id} completed with result: {result}")
+        
+        task.status = "completed"
+        task.result = result
+        await manager.broadcast({
+            "type": "result",
+            "task_id": task_id,
+            "status": "completed",
+            "result": result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error executing task {task_id}: {e}")
+        task.status = "failed"
+        task.error = str(e)
+        await manager.broadcast({
+            "type": "error",
+            "task_id": task_id,
+            "status": "failed",
+            "error": str(e)
+        })
+
+@app.get("/tasks/{task_id}")
+async def get_task(task_id: str):
+    try:
+        logger.info(f"Getting task {task_id}")
+        task = tasks.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return task
+    except Exception as e:
+        logger.error(f"Error getting task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    logger.info("WebSocket connection established")
-    
     try:
-        # Import Playwright only when needed
-        from playwright.async_api import async_playwright
-        
-        logger.info("Initializing browser...")
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                headless=True,
-                args=['--no-sandbox']
-            )
-            logger.info("Browser initialized successfully")
-
-            # Test browser by creating a page
-            page = await browser.new_page()
-            await page.goto('https://example.com')
-            title = await page.title()
-            await page.close()
-            await browser.close()
-            
-            await websocket.send_json({
-                "status": "success",
-                "message": f"Browser test successful. Page title: {title}"
-            })
-        
+        await manager.connect(websocket)
+        while True:
+            try:
+                data = await websocket.receive_text()
+                logger.info(f"Received WebSocket message: {data}")
+                await websocket.send_json({"status": "received", "type": "ack"})
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected normally")
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {e}")
+                break
     except Exception as e:
-        logger.error(f"Error in WebSocket connection: {str(e)}", exc_info=True)
-        await websocket.send_json({
-            "status": "error",
-            "message": str(e)
-        })
+        logger.error(f"WebSocket connection error: {e}")
     finally:
-        await websocket.close()
-        logger.info("WebSocket connection closed")
+        manager.disconnect(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info"
+    )

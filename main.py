@@ -20,6 +20,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log environment variables (excluding sensitive ones)
+logger.info("Environment variables:")
+for key, value in os.environ.items():
+    if key != "OPENAI_API_KEY":
+        logger.info(f"{key}={value}")
+
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -32,15 +38,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-try:
-    # Initialize Browser with OpenAI
-    logger.info("Initializing Browser...")
-    browser = Browser()
-    browser.llm = ChatOpenAI(model="o3-mini")
-    logger.info("Browser initialized successfully")
-except Exception as e:
-    logger.error(f"Error initializing Browser: {e}")
-    raise
+# Initialize Browser as None first
+browser = None
+
+async def initialize_browser():
+    global browser
+    try:
+        if browser is None:
+            logger.info("Initializing Browser...")
+            browser = Browser()
+            browser.llm = ChatOpenAI(model="o3-mini")
+            logger.info("Browser initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing Browser: {e}")
+        raise
 
 # Data models
 class Context(BaseModel):
@@ -99,21 +110,30 @@ manager = ConnectionManager()
 # Store tasks
 tasks: Dict[str, TaskResponse] = {}
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up FastAPI application...")
+    try:
+        # Log system information
+        import sys
+        logger.info(f"Python version: {sys.version}")
+        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.info(f"Directory contents: {os.listdir()}")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+
 @app.get("/health")
 async def health_check():
-    try:
-        # Check if browser is initialized
-        if not browser:
-            raise Exception("Browser not initialized")
-        return {"status": "healthy"}
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("Health check endpoint called")
+    return {"status": "healthy"}
 
 @app.post("/tasks")
 async def create_task(request: TaskRequest):
     try:
         logger.info(f"Received task request: {request}")
+        # Initialize browser if not already initialized
+        await initialize_browser()
+        
         task_id = str(len(tasks) + 1)
         task = TaskResponse(id=task_id, status="pending")
         tasks[task_id] = task

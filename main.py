@@ -44,7 +44,7 @@ def get_agent():
     if agent is None:
         agent = Agent(
             llm=ChatOpenAI(model="gpt-4"),
-            browser_config={"headless": True}
+            options={"headless": True}
         )
     return agent
 

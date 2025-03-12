@@ -143,7 +143,6 @@ async def execute_task(task_id: str, request: TaskRequest):
         # Get agent instance and execute browser automation
         current_agent = get_agent()
         result = await current_agent.run(
-            task=request.task,
             initial_url=request.context.url,
             context={"page_title": request.context.title}
         )

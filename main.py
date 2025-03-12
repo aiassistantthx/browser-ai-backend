@@ -142,10 +142,9 @@ async def execute_task(task_id: str, request: TaskRequest):
         
         # Get agent instance and execute browser automation
         current_agent = get_agent()
-        result = await current_agent.run(
-            initial_url=request.context.url,
-            context={"page_title": request.context.title}
-        )
+        # Update agent's task with the current request
+        current_agent.task = request.task
+        result = await current_agent.run()
         
         logger.info(f"Task {task_id} completed with result: {result}")
         

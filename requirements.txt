@@ -1,7 +1,7 @@
 fastapi==0.109.2
 uvicorn==0.27.1
 pydantic>=2.10.4
-python-dotenv==1.0.0
+python-dotenv>=1.0.1
 websockets==12.0
 browser-use==0.1.40
 langchain-openai==0.3.1

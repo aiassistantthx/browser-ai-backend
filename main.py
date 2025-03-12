@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import datetime
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,12 +36,25 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        # Check if agent is initialized
+        if not agent:
+            return {"status": "unhealthy", "message": "Agent not initialized"}
+        
+        # Basic service health check
+        return {
+            "status": "healthy",
+            "service": "browser-ai-backend",
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {"status": "unhealthy", "error": str(e)}
 
 # Initialize Agent with OpenAI
 agent = Agent(
     llm=ChatOpenAI(model="gpt-4"),
-    headless=False  # Set to True in production
+    headless=True  # Set to True for Docker
 )
 
 # Data models

@@ -46,6 +46,7 @@ def get_agent():
         browser_config = BrowserConfig(headless=True, disable_security=True)
         browser = Browser(config=browser_config)
         agent = Agent(
+            task="I am a browser automation agent. I will help you with web tasks.",
             llm=ChatOpenAI(model="gpt-4"),
             browser=browser
         )

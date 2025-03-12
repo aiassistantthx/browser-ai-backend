@@ -21,12 +21,9 @@ RUN playwright install chromium
 # Copy the rest of the application
 COPY . .
 
-# Expose the port
-EXPOSE 8000
-
 # Add healthcheck with longer initial delay and more retries
 HEALTHCHECK --interval=10s --timeout=10s --start-period=30s --retries=10 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "main.py"]

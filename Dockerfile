@@ -1,4 +1,5 @@
-FROM python:3.11-slim
+# Stage 1: Install Playwright and its dependencies
+FROM python:3.11-slim as playwright_deps
 
 # Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y \
@@ -17,23 +18,30 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Playwright
+RUN pip install playwright==1.41.2
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Stage 2: Final image
+FROM python:3.11-slim
+
+# Copy Playwright dependencies from the first stage
+COPY --from=playwright_deps /ms-playwright /ms-playwright
+
 WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps
+# Copy the rest of the application
+COPY . .
 
 # Set environment variables for Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PLAYWRIGHT_HEADLESS=true
 ENV DISPLAY=:99
-
-# Copy the rest of the application
-COPY . .
 
 # Expose the port (for documentation)
 EXPOSE 8000

@@ -32,6 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 # Initialize Agent with OpenAI
 agent = Agent(
     llm=ChatOpenAI(model="gpt-4"),

@@ -43,13 +43,21 @@ browser = None
 def get_agent():
     global agent, browser
     if agent is None:
-        browser_config = BrowserConfig(headless=True, disable_security=True)
-        browser = Browser(config=browser_config)
-        agent = Agent(
-            task="I am a browser automation agent. I will help you with web tasks.",
-            llm=ChatOpenAI(model="gpt-4"),
-            browser=browser
-        )
+        logger.info("Initializing new browser and agent...")
+        try:
+            browser_config = BrowserConfig(headless=True, disable_security=True)
+            browser = Browser(config=browser_config)
+            logger.info("Browser initialized successfully")
+            
+            agent = Agent(
+                task="I am a browser automation agent. I will help you with web tasks.",
+                llm=ChatOpenAI(model="gpt-4"),
+                browser=browser
+            )
+            logger.info("Agent initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing agent: {e}")
+            raise
     return agent
 
 # Health check endpoint
@@ -141,25 +149,36 @@ async def execute_task(task_id: str, request: TaskRequest):
         logger.info(f"Processing task {task_id}: {request.task}")
         
         # Get agent instance and execute browser automation
-        current_agent = get_agent()
-        # Update agent's task with the current request and URL
-        current_agent.task = f"On page {request.context.url}, {request.task}"
-        # Run the task
-        result = await current_agent.run()
-        
-        logger.info(f"Task {task_id} completed with result: {result}")
-        
-        task.status = "completed"
-        task.result = result
-        await manager.broadcast({
-            "type": "result",
-            "task_id": task_id,
-            "status": "completed",
-            "result": result
-        })
-        
+        try:
+            logger.info("Getting agent instance...")
+            current_agent = get_agent()
+            logger.info("Agent instance retrieved successfully")
+            
+            # Update agent's task with the current request and URL
+            task_description = f"On page {request.context.url}, {request.task}"
+            logger.info(f"Setting task description: {task_description}")
+            current_agent.task = task_description
+            
+            # Run the task
+            logger.info("Starting task execution...")
+            result = await current_agent.run()
+            logger.info(f"Task execution completed with result: {result}")
+            
+            task.status = "completed"
+            task.result = result
+            await manager.broadcast({
+                "type": "result",
+                "task_id": task_id,
+                "status": "completed",
+                "result": result
+            })
+            
+        except Exception as e:
+            logger.error(f"Error during task execution: {str(e)}", exc_info=True)
+            raise
+            
     except Exception as e:
-        logger.error(f"Error executing task {task_id}: {e}")
+        logger.error(f"Error executing task {task_id}: {str(e)}", exc_info=True)
         task.status = "failed"
         task.error = str(e)
         await manager.broadcast({

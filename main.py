@@ -32,9 +32,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Browser with OpenAI
-browser = Browser()
-browser.llm = ChatOpenAI(model="o3-mini")
+try:
+    # Initialize Browser with OpenAI
+    logger.info("Initializing Browser...")
+    browser = Browser()
+    browser.llm = ChatOpenAI(model="o3-mini")
+    logger.info("Browser initialized successfully")
+except Exception as e:
+    logger.error(f"Error initializing Browser: {e}")
+    raise
 
 # Data models
 class Context(BaseModel):
@@ -95,7 +101,14 @@ tasks: Dict[str, TaskResponse] = {}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        # Check if browser is initialized
+        if not browser:
+            raise Exception("Browser not initialized")
+        return {"status": "healthy"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tasks")
 async def create_task(request: TaskRequest):
@@ -183,9 +196,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    logger.info(f"Starting server on port {port}")
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=int(os.getenv("PORT", "8000")),
+        port=port,
         log_level="info"
     )

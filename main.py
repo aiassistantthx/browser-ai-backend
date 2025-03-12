@@ -145,7 +145,7 @@ async def execute_task(task_id: str, request: TaskRequest):
         # Update agent's task with the current request
         current_agent.task = request.task
         # Navigate to the page before running the task
-        await current_agent.page.goto(request.context.url)
+        await current_agent.browser.open_url(request.context.url)
         result = await current_agent.run()
         
         logger.info(f"Task {task_id} completed with result: {result}")

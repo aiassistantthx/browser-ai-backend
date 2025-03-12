@@ -1,19 +1,26 @@
-import os
 import logging
+import os
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Configure logging
+# Configure logging to show everything
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
 )
+
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+# Log system information at startup
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Environment variables: {dict(os.environ)}")
+
 app = FastAPI()
 
-# Configure CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,11 +31,10 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting up FastAPI application...")
-    # Log environment variables (excluding sensitive ones)
-    for key, value in os.environ.items():
-        if key != "OPENAI_API_KEY":
-            logger.info(f"{key}={value}")
+    logger.info("Application startup...")
+    # Log all mounted routes
+    for route in app.routes:
+        logger.info(f"Route mounted: {route.path} [{','.join(route.methods)}]")
 
 @app.get("/")
 async def root():
@@ -36,6 +42,6 @@ async def root():
     return {"message": "Hello World"}
 
 @app.get("/health")
-async def health_check():
+async def health():
     logger.info("Health check endpoint called")
     return {"status": "healthy"}
